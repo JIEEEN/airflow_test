@@ -3,7 +3,7 @@ version: "3.8"
 x-airflow-common: &airflow-common
   environment:
     - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-    - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_DB}/airflow
+    - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
     - AIRFLOW__CORE__FERNET_KEY=${FERNET_KEY}
     - AIRFLOW__CORE__LOGGING_LEVEL=INFO
     - AIRFLOW__CORE__LOAD_EXAMPLES=False
@@ -52,7 +52,7 @@ services:
   airflow-webserver:
     <<: *airflow-common
     build:
-      context: .
+      context: ./airflow
       dockerfile: Dockerfile
     depends_on:
       - postgres
@@ -69,7 +69,7 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     build:
-      context: .
+      context: ./airflow
       dockerfile: Dockerfile
     depends_on:
       - postgres
