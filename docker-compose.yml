@@ -1,0 +1,93 @@
+version: "3.8"
+
+x-airflow-common: &airflow-common
+  environment:
+    - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+    - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_DB}/airflow
+    - AIRFLOW__CORE__FERNET_KEY=${FERNET_KEY}
+    - AIRFLOW__CORE__LOGGING_LEVEL=INFO
+    - AIRFLOW__CORE__LOAD_EXAMPLES=False
+  volumes:
+    - ${AIRFLOW_DEFAULT_FILE}/dags:/usr/local/airflow/dags
+    - ${AIRFLOW_DEFAULT_FILE}/logs:/usr/local/airflow/logs
+    - ${AIRFLOW_DEFAULT_FILE}/plugins:/usr/local/airflow/plugins
+  depends_on:
+    - postgres
+
+services:
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - ${POSTGRES_BINDING_PORT}:${POSTGRES_PORT}
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "airflow" ]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+
+  redis:
+    image: redis:6.2.6-alpine
+    ports:
+      - ${REDIS_BINDING_PORT}:${REDIS_PORT}
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ${REDIS_DATA_PATH}:/data
+      - ${REDIS_DEFAULT_CONFIG_FILE}:/usr/local/etc/redis/redis.conf
+    expose:
+      - ${REDIS_PORT}
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  airflow-webserver:
+    <<: *airflow-common
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+    ports:
+      - 8081:8080
+    command: webserver
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  airflow-scheduler:
+    <<: *airflow-common
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+    command: scheduler
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "airflow jobs check --job-type SchedulerJob --hostname $(hostname)"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+  # airflow-worker:
+
+  # airflow-trigger:
+
+
+volumes:
+  postgres-db-volume:
