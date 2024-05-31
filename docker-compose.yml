@@ -15,18 +15,35 @@ x-airflow-common: &airflow-common
     - postgres
 
 services:
+  nginx:
+    build: ./nginx
+    ports:
+      - 8000:80
+      - 443:443
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - api-server
+
+  api-server:
+    build: ./flask
+    container_name: api-server
+    volumes:
+      - ./flask:/app
+    expose:
+      - ${FLASK_PORT}
+
   postgres:
-    image: postgres:14
+    image: postgres:14-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - ${POSTGRES_BINDING_PORT}:${POSTGRES_PORT}
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "airflow" ]
+      test: [ "CMD", "pg_isready -U", $(POSTGRES_USER) ]
       interval: 10s
       retries: 5
       start_period: 5s
@@ -54,8 +71,6 @@ services:
     build:
       context: ./airflow
       dockerfile: Dockerfile
-    depends_on:
-      - postgres
     ports:
       - 8081:8080
     command: webserver
@@ -71,8 +86,6 @@ services:
     build:
       context: ./airflow
       dockerfile: Dockerfile
-    depends_on:
-      - postgres
     command: scheduler
     healthcheck:
       test:
@@ -84,10 +97,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-  # airflow-worker:
-
-  # airflow-trigger:
-
 
 volumes:
   postgres-db-volume:
